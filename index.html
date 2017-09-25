@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700,400italic">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="static/muse-ui.css">
+  <link rel="stylesheet" href="static/theme-teal.min.css">
+  <link rel="stylesheet" href="static/styles.css">
+  <title>Chat</title>
+</head>
+
+<body>
+
+  <div id="app">
+
+    <div class="container">
+
+      <mu-appbar class="hd" title="Chat">
+        <mu-icon-button icon="menu" slot="left" />
+      </mu-appbar>
+
+      <div class="bd">
+        <div class="msg-box" v-for="msg in msgs">
+          <div class="system" v-if="msg.type === 'system'">{{msg.content}}</div>
+          <div class="chat yourself" v-if="msg.type === 'chat' && msg.isYourself">
+            <div class="msg-box-inner">{{msg.content}}</div>
+          </div>
+          <div class="chat otherone" v-if="msg.type === 'chat' && !msg.isYourself">
+            <div class="msg-box-nickname">{{msg.nickname}} </div>
+            <div class="msg-box-inner">{{msg.content}}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ft">
+        <mu-icon-button icon="mood"></mu-icon-button>
+        <mu-icon-button icon="image"></mu-icon-button>
+        <mu-text-field id="msg" v-model="msg" @focus="handleMsgInputFocus" @keyup.native.enter="handleSendButtonClick"></mu-text-field>
+        <mu-icon-button class="btn-send" icon="send" @click="handleSendButtonClick"></mu-icon-button>
+      </div>
+
+      <mu-dialog class="dialog-name" :open="!hasGotNickname" :title="connected ? 'Enter you nickname' : 'Connecting server'" @close="close">
+        <mu-circular-progress :size="40" v-if="!connected"></mu-circular-progress>
+        <mu-text-field v-model="nickname"></mu-text-field>
+        <mu-flat-button v-show="connected" slot="actions" primary @click="handleEnterNickname" label="Go"></mu-flat-button>
+      </mu-dialog>
+
+      <mu-snackbar v-if="snackbar" :message="snackbarText"></mu-snackbar>
+
+    </div>
+
+  </div>
+
+  <script src="https://cdn.bootcss.com/socket.io/2.0.3/socket.io.js"></script>
+  <script src="https://cdn.bootcss.com/vue/2.4.2/vue.min.js"></script>
+  <script src="static/muse-ui.js"></script>
+  <script>
+    var socket = io.connect('192.168.190.139:9208')
+    var io = socket
+
+    var vm = new Vue({
+      el: '#app',
+      data: {
+        connected: false,
+        hasGotNickname: false,
+        nickname: '',
+        snackbar: false,
+        snackbarText: '',
+        msgs: [],
+        msg: '',
+        userCount: 0,
+        bd: {}
+      },
+      methods: {
+        handleMsgInputFocus: function () {
+
+        },
+        handleSendButtonClick: function () {
+          if (this.msg) {
+            io.emit('postMsg', this.msg)
+            this.msgs.push({ type: 'chat', content: this.msg, isYourself: true })
+            this.msg = ''
+            this.scrollBottom()
+          }
+        },
+        handleEnterNickname: function () {
+          if (this.nickname) {
+            io.emit('login', this.nickname)
+          } else {
+            this.snackbarText = 'Nickname is not empty'
+            this.snackbar = true
+            setTimeout(() => { this.snackbar = false }, 1000)
+          }
+        },
+        scrollBottom: function () {
+          this.$nextTick(function () {
+            var bdHeight = this.bd.scrollHeight
+            var winHeight = window.innerHeight
+            var to = bdHeight - winHeight
+            this.bd.scrollTop = to >= 0 ? to : 0
+          })
+        }
+      },
+      created: function () {
+        var self = this
+        socket.on('connect', function () {
+          self.connected = true
+        })
+        socket.on('loginSuccess', function () {
+          self.hasGotNickname = true
+          self.snackbarText = 'Login Success'
+          self.snackbar = true
+          setTimeout(() => { self.snackbar = false }, 1000)
+        })
+        socket.on('nicknameExisted', function () {
+          self.snackbarText = 'Nickname is exist'
+          self.snackbar = true
+          setTimeout(() => { self.snackbar = false }, 1000)
+        })
+        socket.on('system', function (nickname, userCount, type) {
+          var msg = nickname + (type === 'login' ? ' joined' : ' left')
+          self.msgs.push({ type: 'system', content: msg })
+          self.scrollBottom()
+        })
+        socket.on('newMsg', function (nickname, msg) {
+          self.msgs.push({ type: 'chat', content: msg, isYourself: false, nickname: nickname })
+          self.scrollBottom()
+        })
+      },
+      mounted: function () {
+        var self = this
+        this.$nextTick(function () {
+          document
+            .querySelector('#msg .mu-text-field-input')
+            .placeholder = 'Your message'
+          self.bd = document.querySelector('.bd')
+        })
+      }
+    })
+  </script>
+</body>
+
+</html>
