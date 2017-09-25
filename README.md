@@ -1,3 +1,7 @@
+## Socket Chat
+
+A chat demo build with Vue.js, Muse-UI, Express, socket.io
+
 ### Run
 
 ```bash
